@@ -2,6 +2,7 @@ import random
 from typing import List
 
 import sc2
+from sc2 import UnitTypeId
 from sc2.player import Bot, Computer
 from sc2.position import Point3, Point2
 
@@ -32,7 +33,7 @@ class MATester(sc2.BotAI):
         self.path = None
 
     async def on_start(self):
-        self.map_data = MapData(self, loglevel="DEBUG")
+        self.map_data = MapData(self, loglevel="ERROR")
         self.logger = self.map_data.logger
         base = self.townhalls[0]
         reg_start = self.map_data.where_all(base.position_tuple)[0]
@@ -82,6 +83,12 @@ class MATester(sc2.BotAI):
 
 
     async def on_step(self, iteration: int):
+        if not self.units(UnitTypeId.REAPER):
+            await self.client.debug_create_unit(
+                    [[UnitTypeId.REAPER, 1, self.map_data.bot.enemy_start_locations[0].position, 1]])
+            await self.client.debug_create_unit(
+                    [[UnitTypeId.REAPER, 1, self.map_data.bot.townhalls[0].position.position, 2]])
+        await self.map_data.draw_influence()
         nonpathables = self.map_data.bot.structures
         nonpathables.extend(self.map_data.bot.enemy_structures)
         nonpathables.extend(self.map_data.mineral_fields)

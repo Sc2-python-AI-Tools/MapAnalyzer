@@ -89,7 +89,10 @@ class MapAnalyzerPather:
         return grid
 
     def get_base_pathing_grid(self) -> ndarray:
-        return np.fmax(self.map_data.path_arr, self.map_data.placement_arr).T
+        grid = np.fmax(self.map_data.path_arr, self.map_data.placement_arr).T
+        for point in self.map_data.bot.game_info.vision_blockers:
+            grid[point] = 1
+        return grid
 
     def get_climber_grid(self, default_weight: int = 1, include_destructables: bool = True) -> ndarray:
         """Grid for units like reaper / colossus """
@@ -116,6 +119,15 @@ class MapAnalyzerPather:
         grid = self._add_non_pathables_ground(grid=grid, include_destructables=include_destructables)
         return grid
 
+    def get_image_grid(self):
+        grid = self.get_pyastar_grid()
+        grid = np.where(grid == np.inf, 0, grid)
+        for unit in self.map_data.bot.enemy_units:
+            p = unit.position
+            pos = p
+            grid = self.add_cost(position=pos, radius=unit.ground_range, arr=grid, weight=1000, safe=False, silent=True)
+        return grid
+
     def pathfind(self, start: Tuple[int, int], goal: Tuple[int, int], grid: Optional[ndarray] = None,
                  allow_diagonal: bool = False, sensitivity: int = 1) -> ndarray:
         if start is not None and goal is not None:
@@ -136,11 +148,12 @@ class MapAnalyzerPather:
             return None
 
     def add_cost(self, position: Tuple[int, int], radius: int, arr: ndarray, weight: int = 100,
-                 safe: bool = True) -> ndarray:
+                 safe: bool = True, silent=False) -> ndarray:
         ri, ci = skdraw.disk(center=(int(position[0]), int(position[1])), radius=radius, shape=arr.shape)
         if len(ri) == 0 or len(ci) == 0:
             # this happens when the center point is near map edge, and the radius added goes beyond the edge
-            self.map_data.logger.debug(OutOfBoundsException(position))
+            if not silent:
+                self.map_data.logger.debug(OutOfBoundsException(position))
             # self.map_data.logger.trace()
             return arr
 

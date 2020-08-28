@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING, Union
 import numpy as np
 from loguru import logger
 from numpy import ndarray
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 
 from .constants import COLORS, LOG_FORMAT, LOG_MODULE
 
@@ -22,7 +22,7 @@ class LogFilter:
 
     def __call__(self, record: Dict[str, Any]) -> bool:
         levelno = logger.level(self.level).no
-        if self.module_name.lower() in record["name"].lower() or 'main' in record["name"].lower():
+        if self.module_name.lower() in record["name"].lower():
             return record["level"].no >= levelno
         return False
 
@@ -34,6 +34,7 @@ class MapAnalyzerDebugger:
 
     def __init__(self, map_data: "MapData", loglevel: str = "ERROR") -> None:
         self.map_data = map_data
+        self.map_scale = 5
         self.warnings = warnings
         self.warnings.filterwarnings('ignore', category=DeprecationWarning)
         self.warnings.filterwarnings('ignore', category=RuntimeWarning)
@@ -229,3 +230,175 @@ class MapAnalyzerDebugger:
         cbar.ax.set_ylabel('Pathing Cost', rotation=270, labelpad=25, fontdict=fontdict)
         plt.title(f"{name}", fontdict=fontdict, loc='right')
         plt.grid()
+
+    @property
+    def empty_map(self):
+        map_scale = self.map_scale
+        grid = np.zeros(
+                (
+                        self.map_data.bot.game_info.map_size[1] * map_scale,
+                        self.map_data.bot.game_info.map_size[0] * map_scale,
+                        3,
+                ),
+                np.uint8,
+        )
+        return grid
+
+    def add_minerals(self, grid):
+        import cv2
+        for mineral in self.map_data.bot.mineral_field:
+            mine_pos = mineral.position
+            cv2.rectangle(
+                    grid,
+                    (
+                            int((mine_pos[0] - 0.75) * self.map_scale),
+                            int((mine_pos[1] - 0.25) * self.map_scale),
+                    ),
+                    (
+                            int((mine_pos[0] + 0.75) * self.map_scale),
+                            int((mine_pos[1] + 0.25) * self.map_scale),
+                    ),
+                    Point3((55, 200, 255)),  # blue
+                    -1,
+            )
+
+    @property
+    def heightmap(self):
+        import cv2
+        # gets the min and max heigh of the map for a better contrast
+        h_min = np.amin(self.map_data.bot.game_info.terrain_height.data_numpy)
+        h_max = np.amax(self.map_data.bot.game_info.terrain_height.data_numpy)
+        multiplier = 150 / (h_max - h_min)
+
+        grid = self.empty_map
+
+        for (y, x), h in np.ndenumerate(self.map_data.bot.game_info.terrain_height.data_numpy):
+            color = (h - h_min) * multiplier
+            cv2.rectangle(
+                    grid,
+                    (x * self.map_scale, y * self.map_scale),
+                    (
+                            x * self.map_scale + self.map_scale,
+                            y * self.map_scale + self.map_scale,
+                    ),
+                    (color, color, color),
+                    -1,
+            )
+        return grid
+
+    async def draw_influence(self):
+        import cv2
+        CVRED = (0, 0, 255)
+        CVGREEN = (0, 255, 0)
+
+        # # game_data = np.zeros((self.map_data.path_arr.shape[1], self.map_data.path_arr.shape[0], 3), np.uint8)
+        # grid = self.map_data.pather.get_image_grid()
+        # game_data = cv2.cvtColor(grid, cv2.COLOR_GRAY2RGB)
+        #
+        # for unit in self.map_data.bot.all_own_units:
+        #     pos = unit.position
+        #     if isinstance(unit.radius, (int,float)):
+        #         radius = int(unit.radius)
+        #     else:
+        #         radius = 1
+        #     cv2.circle(game_data, (int(pos[1]), int(pos[0])), radius, (0, 255, 0))
+        #
+        # for unit in self.map_data.bot.enemy_units:
+        #     pos = unit.position
+        #     if isinstance(unit.radius, (int,float)):
+        #         radius = int(unit.radius)
+        #     else:
+        #         radius = 1
+        #     cv2.circle(game_data, (int(pos[1]), int(pos[0])), radius, (0, 0, 255))
+        #
+        # # for unit in self.map_data.bot.all_own_units:
+        # #     p = unit.position.rounded
+        # #     grid[p] = np.inf
+        # # for unit in self.map_data.bot.enemy_units:
+        # #     p = unit.position.rounded
+        # #     grid[p] = 0
+        # # return grid
+        #
+        # #
+        # # # UNIT: [SIZE, (BGR COLOR)]
+        # # draw_dict = {
+        # #         UnitTypeId.NEXUS           : [15, (0, 255, 0)],
+        # #         UnitTypeId.PYLON           : [3, (20, 235, 0)],
+        # #         UnitTypeId.PROBE           : [1, (55, 200, 0)],
+        # #         UnitTypeId.ASSIMILATOR     : [2, (55, 200, 0)],
+        # #         UnitTypeId.GATEWAY         : [3, (200, 100, 0)],
+        # #         UnitTypeId.CYBERNETICSCORE : [3, (150, 150, 0)],
+        # #         UnitTypeId.STARGATE        : [5, (255, 0, 0)],
+        # #         UnitTypeId.ROBOTICSFACILITY: [5, (215, 155, 0)],
+        # #
+        # #         UnitTypeId.VOIDRAY         : [3, (255, 100, 0)],
+        # #         # OBSERVER: [3, (255, 255, 255)],
+        # # }
+        # #
+        # # for unit in self.map_data.bot.all_units:
+        # #     pos = unit.position
+        # #     if isinstance(unit.radius, (int,float)):
+        # #         radius = int(unit.radius)
+        # #     else:
+        # #         radius = 1
+        # #     cv2.circle(game_data, (int(pos[0]), int(pos[1])), radius, (55, 200, 0))
+        #
+        # # flip horizontally to make our final fix in visual representation:
+        # # flipped = cv2.flip(cv2.flip(game_data, 0), 1)
+        # # flipped = cv2.flip(game_data, 0)
+        # # flipped = cv2.flip(flipped, 1)
+        # fname = 'test.png'
+        # path_image = cv2.cvtColor(self.map_data.path_arr, cv2.COLOR_GRAY2RGB)
+        # height_image = cv2.cvtColor(self.map_data.terrain_height, cv2.COLOR_GRAY2RGB)
+        #
+        # layers = [game_data, height_image]
+        # for layer in layers:
+        #     try:
+        #         flipped = cv2.flip(layer, -1)
+        #         resized = cv2.resize(flipped, dsize=None, fx=5, fy=5)
+        #         cv2.imshow('Intel', resized)
+        #     except Exception as e:
+        #         self.logger.error(e)
+        #
+        # # flipped = cv2.flip(game_data, -1)
+        # # resized = cv2.resize(flipped, dsize=None, fx=5, fy=5)
+        # # cv2.imshow('Intel', resized)
+        # # cv2.imshow('Intel',self.map_data.path_arr)
+        # # cv2.imshow('Intel',self.map_data.terrain_height)
+        #
+        # cv2.waitKey(1)
+
+        grid = self.heightmap
+        tmpg = grid.copy()
+        self.add_minerals(grid)
+
+        for unit in self.map_data.bot.all_own_units:
+            pos = unit.position
+            if isinstance(unit.ground_range, (int, float)):
+                radius = int(unit.ground_range) + 1
+            else:
+                radius = 1
+            # cv2.circle(grid, (int(pos[1]), int(pos[0])), radius, (0, 0, 255))
+            cv2.circle(tmpg, (int(pos[0]) * self.map_scale, int(pos[1]) * self.map_scale), radius * self.map_scale,
+                       CVGREEN, thickness=-1)
+
+        for unit in self.map_data.bot.enemy_units:
+            pos = unit.position
+            if isinstance(unit.ground_range, (int, float)):
+                radius = int(unit.ground_range) + 1
+            else:
+                radius = 1
+            # cv2.circle(grid, (int(pos[1]), int(pos[0])), radius, (0, 0, 255))
+            cv2.circle(tmpg, (int(pos[0]) * self.map_scale, int(pos[1]) * self.map_scale), radius * self.map_scale,
+                       CVRED, thickness=-1)
+
+        # cv2.rectangle(blk, (5, 5), (100, 75), (255, 255, 255), cv2.FILLED)
+        #
+        # # Generate result by blending both images (opacity of rectangle image is 0.25 = 25 %)
+        # out = cv2.addWeighted(img, 1.0, blk, 0.25, 1)
+        #
+        grid = cv2.addWeighted(grid, 1.0, tmpg, 0.25, 1)
+        flipped = cv2.flip(grid, 0)
+        resized = flipped  # cv2.resize(flipped, dsize=None, fx=2, fy=2)
+        cv2.imshow("Intel", resized)
+        cv2.waitKey(1)

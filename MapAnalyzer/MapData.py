@@ -589,7 +589,7 @@ class MapData:
                     if isinstance(a, MDRamp):
                         self.polygons.pop(self.polygons.index(pol))
 
-    @progress_wrapped(estimated_time=0, desc=f"\u001b[32m Version {__version__} Map Compilation Progress \u001b[37m")
+    @progress_wrapped(estimated_time=0, desc=f"\u001B[31m {__version__} \u001b[32m Map Compilation Progress \u001b[37m")
     def _compile_map(self) -> None:
 
         self._calc_grid()
@@ -721,6 +721,9 @@ class MapData:
                 j += 1
 
     """Plot methods"""
+
+    async def draw_influence(self):
+        await self.debugger.draw_influence()
 
     def plot_map(
             self,

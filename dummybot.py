@@ -63,24 +63,6 @@ class MATester(sc2.BotAI):
                                            allow_diagonal=True)
         self.hero_tag = self.workers[0].tag
 
-    def get_random_point(self, minx, maxx, miny, maxy):
-        return (random.randint(minx, maxx), random.randint(miny, maxy))
-
-    def _get_random_influence(self, n, r):
-        pts = []
-        for i in range(n):
-            pts.append(
-                    (Point2(self.get_random_point(50, 130, 25, 175)), r))
-        return pts
-
-    def _plot_influence(self, units):
-        for unit in units:
-            p = unit.position
-            r = unit.radius
-            h = self.get_terrain_z_height(p)
-            pos = Point3((p.x, p.y, h))
-            self.client.debug_sphere_out(p=pos, r=r, color=RED)
-
 
     async def on_step(self, iteration: int):
         if not self.units(UnitTypeId.REAPER):
@@ -88,15 +70,15 @@ class MATester(sc2.BotAI):
                     [[UnitTypeId.REAPER, 1, self.map_data.bot.enemy_start_locations[0].position, 1]])
             await self.client.debug_create_unit(
                     [[UnitTypeId.REAPER, 1, self.map_data.bot.townhalls[0].position.position, 2]])
-        await self.map_data.draw_influence()
-        nonpathables = self.map_data.bot.structures
-        nonpathables.extend(self.map_data.bot.enemy_structures)
-        nonpathables.extend(self.map_data.mineral_fields)
-        nonpathables.extend(self.map_data.bot.vespene_geyser)
-        destructables_filtered = [d for d in self.map_data.bot.destructables if "plates" not in d.name.lower()]
-        nonpathables.extend(destructables_filtered)
-        self.influence_points = nonpathables
-        self._plot_influence(nonpathables)
+        await self.map_data.draw_ground_influence(fill=True)
+        # nonpathables = self.map_data.bot.structures
+        # nonpathables.extend(self.map_data.bot.enemy_structures)
+        # nonpathables.extend(self.map_data.mineral_fields)
+        # nonpathables.extend(self.map_data.bot.vespene_geyser)
+        # destructables_filtered = [d for d in self.map_data.bot.destructables if "plates" not in d.name.lower()]
+        # nonpathables.extend(destructables_filtered)
+        # self.influence_points = nonpathables
+        # self._plot_influence(nonpathables)
         # pos = self.map_data.bot.townhalls.ready.first.position
         # areas = self.map_data.where_all(pos)
         # self.logger.debug(areas)
@@ -163,7 +145,23 @@ class MATester(sc2.BotAI):
                         "\n".join([f"{text}", ]), pos, color=color, size=30,
                 )
 
+    def get_random_point(self, minx, maxx, miny, maxy):
+        return (random.randint(minx, maxx), random.randint(miny, maxy))
 
+    def _get_random_influence(self, n, r):
+        pts = []
+        for i in range(n):
+            pts.append(
+                    (Point2(self.get_random_point(50, 130, 25, 175)), r))
+        return pts
+
+    def _plot_influence(self, units):
+        for unit in units:
+            p = unit.position
+            r = unit.radius
+            h = self.get_terrain_z_height(p)
+            pos = Point3((p.x, p.y, h))
+            self.client.debug_sphere_out(p=pos, r=r, color=RED)
 def main():
     map = "GoldenWallLE"
     map = "GoldenWallLE"

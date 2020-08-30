@@ -722,8 +722,8 @@ class MapData:
 
     """Plot methods"""
 
-    async def draw_influence(self):
-        await self.debugger.draw_influence()
+    async def draw_ground_influence(self, fill=False):
+        await self.debugger.draw__ground_influence(fill=fill)
 
     def plot_map(
             self,
